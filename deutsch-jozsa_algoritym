@@ -1,0 +1,80 @@
+#qiskit libs.
+import numpy as np
+from qiskit import IBMQ, BasicAer
+from qiskit.providers.ibmq import least_busy
+from qiskit import QuantumCircuit, execute
+from qiskit.tools.jupyter import *
+provider=IBMQ.load_account()
+#basic plot tools.
+from qiskit.visualization import plot_histogram
+
+def dj_oracle(case,n):
+    #when need to make a quantımcircuit object to return.
+    #this circuit has n+1 qubits:the size of the inptut.
+    #plus one output qubits.
+    oracle_qc=QuantumCircuit(n+1)
+    #first lets deal with the case in which oracle is balanced.
+    if case=="balanced":
+        #we applying not gate foreach qubits,using the output qubits as target
+        for qbit in range(n):
+            oracle_qc.cx(qbit,n)
+    #case in the which oracle is constant
+    if case=="constant":
+        #firs we decide what the fixed output of  the oracle will be either always 1 or 0
+        output=np.random.randint(2)
+        if output==1:
+            oracle_qc.x(1)
+    oracle_gate=oracle_qc.to_gate()
+    oracle_gate.name="Oracle"#to show when we display the circuit
+    return oracle_gate
+    
+ def dj_algoritym(n,case='random'):
+    dj_circuit=QuantumCircuit(n+1,n)
+    #set up the input register
+    for qbit in range(n):
+        dj_circuit.h(qbit)
+    #anti set up the output qbit
+    dj_circuit.x(n)#not gate
+    dj_circuit.h(n)#hadamard gate
+    #lets appent the oracle gate to our circuit
+    if case=='random':
+        random=np.random.randint(2)
+        if random==0:
+            case='constant'
+        else:
+            case='balanced'
+    oracle=dj_oracle(case,n)
+    dj_circuit.append(oracle,range(n+1))
+    #finally perform h-gates again and measure
+    for i in range(n):
+        dj_circuit.h(i)
+        dj_circuit.measure(i,i)
+    return dj_circuit
+    
+ n=4
+ dj_circuit=dj_algoritym(n)
+ dj_circuit.draw()
+ 
+ #use local simulator
+backend=BasicAer.get_backend('qasm_simulator')
+shots=1024
+dj_circuit=dj_algoritym(n,'constant')
+result=execute(dj_circuit,backend=backend,shots=shots).result()
+answer=result.get_counts()
+plot_histogram(answer)
+
+
+backend=least_busy(provider.backends(filters=lambda x: 
+                                     x.configuration().n_qubits >= (n+1) 
+                                     and not x.configuration().simulator
+                                     and x.status().operational==True))
+print("least busy backend:",backend)
+%qiskit_job_watcher
+dj_circuit=dj_algoritym(n)
+job=execute(dj_circuit,backend=backend,shots=shots,optimizatşon_level=3)
+
+results=job.result()
+answer=results.get_counts()
+plot_histogram(answer)
+    
+    
